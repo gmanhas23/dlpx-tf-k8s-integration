@@ -1,0 +1,6 @@
+apiVersion: v2
+appVersion: v1.0.0
+description: Delphix Driver for Kubernetes Container Storage Interface
+name: delphix-k8s-driver
+type: application
+version: v1.0.0

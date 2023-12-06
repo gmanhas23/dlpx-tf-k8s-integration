@@ -1,0 +1,13 @@
+apiVersion: v1
+data:
+  sourceDBName: {{ .Values.default.Annotations.sourceDBName }}
+  envName: {{ .Values.default.Annotations.envName }}
+  vdbGroupName: {{ .Values.default.Annotations.vdbGroupName }}
+  vdbRepositoryName: {{ .Values.default.Annotations.vdbRepositoryName }}
+  vdbStageMountpath: {{ .Values.default.Annotations.vdbStageMountpath }}
+  scheme: {{ .Values.default.scheme }}
+  tlsInsecureSkipVerify: {{ .Values.default.tlsInsecureSkipVerify | quote}}
+kind: ConfigMap
+metadata:
+  name: delphix-config
+  namespace: {{ .Release.Namespace }}

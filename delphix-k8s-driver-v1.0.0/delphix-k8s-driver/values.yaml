@@ -1,0 +1,60 @@
+# Set this to true if we are using a microk8s distro
+microk8s: false
+
+# Images of the csi plugin and the sidecar container
+image:
+    csiDePlugin:
+        # modify this parameter to point to the repository from where the csi container will be pulled from
+        repository: kubernetes.download.delphix.com/delphix-kubernetes
+        tag: v1.0.0
+        pullPolicy: Always
+    csiProvisioner:
+        repository: registry.k8s.io/sig-storage/csi-provisioner
+        tag: v3.5.0
+        pullPolicy: IfNotPresent
+    csiAttacher:
+        repository: registry.k8s.io/sig-storage/csi-attacher
+        tag: v4.3.0
+        pullPolicy: IfNotPresent
+    csiResizer:
+        repository: registry.k8s.io/sig-storage/csi-resizer
+        tag: v1.8.0
+        pullPolicy: IfNotPresent
+    nodeDriverRegistrar:
+        repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+        tag: v2.8.0
+        pullPolicy: IfNotPresent
+
+# Credentials to fetch docker images from Delphix internal repository
+# Update these fields with your unique parameters or credentials
+dockerRegistry:
+    imageCredentials:
+        # registry to pull docker images from
+        registry: kubernetes.download.delphix.com/delphix-kubernetes
+        # username to login to docker registry
+        username: <docker-registry-user-name>
+        # password to login to docker registry
+        password: <docker-registry-password>
+        # emailId for above username
+        email: <docker-registry-email>
+
+# DCT credentials 
+# Update these fields with your unique parameters or credentials
+dctCreds:
+    # URL for the dct instance
+    dctUrl: <dct-url>
+    # dct api key for the above instance without the 'apk' part. For eg: 1.ABCDEFG
+    dctKey: <dct-key>
+
+# Default values for annotations.
+# Update these fields with your unique parameters or credentials
+default:
+    scheme: <default-scheme>
+    tlsInsecureSkipVerify: <default-tlsInsecureSkipVerify-flag>
+    Annotations:
+        sourceDBName: <default-source-db-name>
+        envName: <default-env-name>
+        vdbGroupName: <default-group-name>
+        vdbRepositoryName: <default-repository-name>
+        vdbStageMountpath: <default-stage-mount-path>
+    

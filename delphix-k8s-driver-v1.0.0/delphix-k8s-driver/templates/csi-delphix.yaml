@@ -1,0 +1,487 @@
+# Install the CSI Driver. This simplifies driver discovery and enables us to
+# customize Kubernetes behavior
+# https://kubernetes-csi.github.io/docs/csi-driver-object.html
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: defs.csi.delphix.com
+spec:
+  attachRequired: true
+  podInfoOnMount: true
+
+---
+
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: de-fs-storage
+  namespace: {{ .Release.Namespace }}
+provisioner: defs.csi.delphix.com
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+
+---
+
+##############################################
+###########                       ############
+###########   Controller plugin   ############
+###########                       ############
+##############################################
+
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: csi-de-controller
+  namespace: {{ .Release.Namespace }}
+spec:
+  serviceName: "csi-de"
+  selector:
+    matchLabels:
+      app: csi-de-controller
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csi-de-controller
+        role: csi-de
+    spec:
+      priorityClassName: system-cluster-critical
+      serviceAccount: csi-de-controller-sa
+      hostNetwork: true
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: csi-provisioner
+          image: "{{ .Values.image.csiProvisioner.repository }}:{{ .Values.image.csiProvisioner.tag }}"
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+            - "--timeout=9999s"
+            - "--extra-create-metadata=true"
+            - "--volume-name-prefix=dlpx"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: {{ .Values.image.csiProvisioner.pullPolicy }}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-attacher
+          image: "{{ .Values.image.csiAttacher.repository }}:{{ .Values.image.csiAttacher.tag }}"
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+            - "--reconcile-sync=30m"
+            - "--timeout=2m"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: {{ .Values.image.csiAttacher.pullPolicy }}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-resizer
+          image: "{{ .Values.image.csiResizer.repository }}:{{ .Values.image.csiResizer.tag }}"
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--timeout=30s"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: {{ .Values.image.csiResizer.pullPolicy }}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-de-plugin
+          image: "{{ .Values.image.csiDePlugin.repository }}:{{ .Values.image.csiDePlugin.tag }}"
+          args :
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--dctkey=$(DCT_KEY)"
+            - "--dcturl=$(DCT_URL)"
+            - "--nodeid=$(NODE_ID)"
+            - "--envName=$(DELPHIX_ENVIRONMENT_NAME)"
+            - "--vdbRepositoryName=$(DELPHIX_REPOSITORY_NAME)"
+            - "--sourceDBName=$(DELPHIX_SOURCE_REF)"
+            - "--vdbGroupName=$(DELPHIX_GROUP_NAME)"
+            - "--vdbStageMountpath=$(DELPHIX_MOUNT_PATH)"
+            - "--scheme=$(SCHEME)"
+            - "--tlsInsecureSkipVerify=$(TLS_INSECURE_SKIP_VERIFY)"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///var/lib/csi/sockets/pluginproxy/csi.sock
+            - name: DCT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: delphix-creds
+                  key: DCT_URL
+            - name: DCT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: delphix-creds
+                  key: DCT_KEY
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DELPHIX_ENVIRONMENT_NAME
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: envName
+            - name: DELPHIX_GROUP_NAME
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: vdbGroupName
+            - name: DELPHIX_REPOSITORY_NAME
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: vdbRepositoryName
+            - name: DELPHIX_SOURCE_REF
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: sourceDBName
+            - name: DELPHIX_MOUNT_PATH
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: vdbStageMountpath
+            - name: SCHEME
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: scheme
+            - name: TLS_INSECURE_SKIP_VERIFY
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: tlsInsecureSkipVerify
+          imagePullPolicy: {{ .Values.image.csiDePlugin.pullPolicy }}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+---
+
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: csi-de-controller-sa
+  namespace: {{ .Release.Namespace }}
+
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-de-provisioner-role
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csinodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["get", "list"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-de-provisioner-binding
+subjects:
+  - kind: ServiceAccount
+    name: csi-de-controller-sa
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: csi-de-provisioner-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Attacher must be able to work with PVs, nodes and VolumeAttachments
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-de-attacher-role
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csinodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments/status"]
+    verbs: ["patch"]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-de-attacher-binding
+subjects:
+  - kind: ServiceAccount
+    name: csi-de-controller-sa
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: csi-de-attacher-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+# Resizer must be able to work with PVCs, PVs, SCs.
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-de-resizer-role
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims/status"]
+    verbs: ["update", "patch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-de-resizer-binding
+subjects:
+  - kind: ServiceAccount
+    name: csi-de-controller-sa
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: csi-de-resizer-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+########################################
+###########                 ############
+###########   Node plugin   ############
+###########                 ############
+########################################
+
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: csi-de-node
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: csi-de-node
+  template:
+    metadata:
+      labels:
+        app: csi-de-node
+        role: csi-de
+    spec:
+      priorityClassName: system-node-critical
+      serviceAccount: csi-de-node-sa
+      hostNetwork: true
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: csi-node-driver-registrar
+          image: "{{ .Values.image.nodeDriverRegistrar.repository }}:{{ .Values.image.nodeDriverRegistrar.tag }}"
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              {{ if eq .Values.microk8s true }}value: "/var/snap/microk8s/common/var/lib/kubelet/plugins/defs.csi.delphix.com/csi.sock"{{ end }}
+              {{ if eq .Values.microk8s false }}value: "/var/lib/kubelet/plugins/defs.csi.delphix.com/csi.sock"{{ end }}
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi/
+            - name: registration-dir
+              mountPath: /registration/
+        - name: csi-de-plugin
+          image: "{{ .Values.image.csiDePlugin.repository }}:{{ .Values.image.csiDePlugin.tag }}"
+          args :
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--dctkey=$(DCT_KEY)"
+            - "--dcturl=$(DCT_URL)"
+            - "--nodeid=$(NODE_ID)"
+            - "--envName=$(DELPHIX_ENVIRONMENT_NAME)"
+            - "--vdbRepositoryName=$(DELPHIX_REPOSITORY_NAME)"
+            - "--sourceDBName=$(DELPHIX_SOURCE_REF)"
+            - "--vdbGroupName=$(DELPHIX_GROUP_NAME)"
+            - "--vdbStageMountpath=$(DELPHIX_MOUNT_PATH)"
+            - "--scheme=$(SCHEME)"
+            - "--tlsInsecureSkipVerify=$(TLS_INSECURE_SKIP_VERIFY)"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: DCT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: delphix-creds
+                  key: DCT_URL
+            - name: DCT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: delphix-creds
+                  key: DCT_KEY
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DELPHIX_ENVIRONMENT_NAME
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: envName
+            - name: DELPHIX_GROUP_NAME
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: vdbGroupName
+            - name: DELPHIX_REPOSITORY_NAME
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: vdbRepositoryName
+            - name: DELPHIX_SOURCE_REF
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: sourceDBName
+            - name: DELPHIX_MOUNT_PATH
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: vdbStageMountpath
+            - name: SCHEME
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: scheme
+            - name: TLS_INSECURE_SKIP_VERIFY
+              valueFrom:
+                configMapKeyRef: 
+                  name: delphix-config
+                  key: tlsInsecureSkipVerify
+          imagePullPolicy: {{ .Values.image.csiDePlugin.pullPolicy }}
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - name: pods-mount-dir
+              {{ if eq .Values.microk8s true }}mountPath: "/var/snap/microk8s/common/var/lib/kubelet"{{ end }}
+              {{ if eq .Values.microk8s false }}mountPath: "/var/lib/kubelet"{{ end }}
+              # needed so that any mounts setup inside this container are
+              # propagated back to the host machine.
+              mountPropagation: "Bidirectional"
+            - name: device-dir
+              mountPath: /dev
+      volumes:
+        - name: registration-dir
+          hostPath:
+            {{ if eq .Values.microk8s true }}path: "/var/snap/microk8s/common/var/lib/kubelet/plugins_registry/"{{ end }}
+            {{ if eq .Values.microk8s false }}path: "/var/lib/kubelet/plugins_registry/"{{ end }}
+            type: DirectoryOrCreate
+        - name: plugin-dir
+          hostPath:
+            {{ if eq .Values.microk8s true }}path: "/var/snap/microk8s/common/var/lib/kubelet/plugins/defs.csi.delphix.com"{{ end }}
+            {{ if eq .Values.microk8s false }}path: "/var/lib/kubelet/plugins/defs.csi.delphix.com"{{ end }}
+            type: DirectoryOrCreate
+        - name: pods-mount-dir
+          hostPath:
+            {{ if eq .Values.microk8s true }}path: "/var/snap/microk8s/common/var/lib/kubelet"{{ end }}
+            {{ if eq .Values.microk8s false }}path: "/var/lib/kubelet"{{ end }}
+            type: Directory
+        - name: device-dir
+          hostPath:
+            path: /dev
+        - name: udev-rules-dir
+          hostPath:
+            path: /etc/udev/rules.d/
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csi-de-node-sa
+  namespace: {{ .Release.Namespace }}
+
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-de-node-driver-registrar-role
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-de-node-driver-registrar-binding
+subjects:
+  - kind: ServiceAccount
+    name: csi-de-node-sa
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: csi-de-node-driver-registrar-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,6 +1,9 @@
-# Project Title
+# Terrafactory
+### [Work in Progress]
+Where the transient magic of the Delphix Kubernetes Driver synergizes with the wizrdry of the Delphix Terraform provider to go where no man has ever gone before.
 
-One Paragraph of project description goes here
+Terraform provider can be used to create the underlying infrastructure ( both non-Kubernetes and Kubernetes clusters) needed for the Delphix Kubernetes driver implementation.
+This includes creating the Delphix engine, virtual machines(non-Kubernetes host environments), cloud-native kubernetes clusters, dsources/VDBs, hook operations etc.
 
 ## Getting Started
 
@@ -8,59 +11,20 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-What things you need to install the software and how to install them
+We require the following to get started:
+- Delphix Control Tower(DCT) instance
+- Delphix Continuous Data Engine, v15.0.0+
+- Kubernetes v1.21+
+- Any RHEL 7.X host environment to act as a staging host
+- Delphix Kubernetes Driver v1.0.0 and Delphix Kubernetes Plugin (delphix-k8s-plugin)
+- Terraform provider for Delphix, v3.1.0
 
-```
-Give examples
-```
-
-### Installing
-
-A step by step series of examples that tell you how to get a development env running
-
-Say what the step will be
-
-```
-Give the example
-```
-
-And repeat
-
-```
-until finished
-```
-
-End with an example of getting some data out of the system or using it for a little demo
-
-## Running the tests
-
-Explain how to run the automated tests for this system
-
-### Break down into end to end tests
-
-Explain what these tests test and why
-
-```
-Give an example
-```
-
-### And coding style tests
-
-Explain what these tests test and why
-
-```
-Give an example
-```
 
 ## Deployment
 
-Add additional notes about how to deploy this on a live system
-
-## Built With
-
-* [Dropwizard](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
-* [Maven](https://maven.apache.org/) - Dependency Management
-* [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
+```
+terraform apply
+```
 
 ## Contributing
 
@@ -69,19 +33,3 @@ Please read [CONTRIBUTING.md](https://github.com/delphix/.github/blob/master/CON
 ## Versioning
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/your/project/tags). 
-
-## Authors
-
-* **Joe Smith** - *Initial work* - [Company](https://github.com/Company)
-
-See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
-
-## License
-
-This project is licensed under the XX License - see the [LICENSE.md](LICENSE.md) file for details
-
-## Acknowledgments
-
-* Hat tip to anyone whose code was used
-* Inspiration
-* etc
