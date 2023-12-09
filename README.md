@@ -1,6 +1,6 @@
 # Terrafactory
 ### [Work in Progress]
-Where the transient magic of the Delphix Kubernetes Driver synergizes with the wizrdry of the Delphix Terraform provider to go where no man has ever gone before.
+Where the transient magic of the Delphix Kubernetes Driver synergizes with the wizardry of the Delphix Terraform provider to go where no man has ever gone before.
 
 Terraform provider can be used to create the underlying infrastructure ( both non-Kubernetes and Kubernetes clusters) needed for the Delphix Kubernetes driver implementation.
 This includes creating the Delphix engine, virtual machines(non-Kubernetes host environments), cloud-native kubernetes clusters, dsources/VDBs, hook operations etc.
