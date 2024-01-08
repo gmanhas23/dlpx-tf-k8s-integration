@@ -63,6 +63,13 @@ locals {
     host_name = "srgt-host.dlpxdc.co"
 }
 
+#Register Engine to DCT
+resource "restapi_object" "reg_engg" {
+  object_id = "id"
+  path = "/v3/management/engines"
+  data = "{\"name\": \"dlpx-hckthn\",\"hostname\": \"dlpx-hckthn.dlpxdc.co\",\"username\": \"admin\",\"password\": \"delphix\",\"insecure_ssl\": true}"
+}
+
 #Add Surrogate/Staging host environment
 resource "delphix_environment" "surrogate_host" {
      engine_id = jsondecode(file("output.json")).id
