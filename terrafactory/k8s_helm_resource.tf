@@ -72,6 +72,7 @@ resource "restapi_object" "reg_engg" {
 
 #Add Surrogate/Staging host environment
 resource "delphix_environment" "surrogate_host" {
+     depends_on = [restapi_object.reg_engg]
      engine_id = jsondecode(file("output.json")).id
      os_name = "UNIX"
      username = "postgres"
