@@ -67,7 +67,7 @@ locals {
 resource "restapi_object" "reg_engg" {
   object_id = "id"
   path = "/v3/management/engines"
-  data = "{\"name\": \"dlpx-hckthn\",\"hostname\": \"dlpx-hckthn.dlpxdc.co\",\"username\": \"admin\",\"password\": \"delphix\",\"insecure_ssl\": true}"
+  data = "{\"name\": \"engine-gm\",\"hostname\": \"engine-gm.dlpxdc.co\",\"username\": \"admin\",\"password\": \"delphix\",\"insecure_ssl\": true}"
 }
 
 #Add Surrogate/Staging host environment
