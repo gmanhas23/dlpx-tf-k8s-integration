@@ -8,8 +8,3 @@ resource "null_resource" "plugin_upload" {
   }
 }
 
-resource "null_resource" "register_engine" {
- provisioner "local-exec" {
-    command = "/bin/bash reg_engg.sh engine-gm.dlpxdc.co"
-  }
-}
